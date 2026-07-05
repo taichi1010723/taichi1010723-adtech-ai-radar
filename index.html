@@ -9,15 +9,27 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-6">
 
-    <header class="max-w-5xl mx-auto mb-8 border-b border-slate-800 pb-4">
+    <header class="max-w-5xl mx-auto mb-6 border-b border-slate-800 pb-4">
         <h1 class="text-3xl font-bold text-blue-400 tracking-tight">AJA AdTech Personal AI Radar</h1>
         <p class="text-sm text-slate-400 mt-1">インクリー / ミエルTV / SSP / AVP / MITA 市場リアルタイム自動監視システム</p>
     </header>
 
+    <div class="max-w-5xl mx-auto mb-6">
+        <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-3" id="tab-container">
+            <button onclick="filterCategory('すべて')" class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white transition" id="tab-すべて">📊 すべて</button>
+            <button onclick="filterCategory('自社プロダクト')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-自社プロダクト">🏢 自社プロダクト・CA</button>
+            <button onclick="filterCategory('競合企業情報')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-競合企業情報">⚔️ 競合企業情報</button>
+            <button onclick="filterCategory('市況・市場変化')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-市況・市場変化">📈 市況・市場変化</button>
+            <button onclick="filterCategory('その他トレンド')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-その他トレンド">🤖 その他トレンド</button>
+        </div>
+    </div>
+
     <main class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="md:col-span-2 space-y-4" id="news-container">
-            <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-2">最新のAI抽出インサイト</h2>
-            <div id="loading" class="text-slate-400 text-sm italic">データを読み込み中...</div>
+        <div class="md:col-span-2 space-y-4">
+            <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-2" id="category-title">最新のAI抽出インサイト (すべて)</h2>
+            <div id="news-container" class="space-y-4">
+                <div id="loading" class="text-slate-400 text-sm italic">データを読み込み中...</div>
+            </div>
         </div>
 
         <div class="space-y-4">
@@ -35,70 +47,103 @@
     </main>
 
     <script>
-        // --- ⚙️ TaichiさんのSupabase情報に自動最適化済み ---
         const SUPABASE_URL = "https://iytiyysuiaykeepcaosa.supabase.co"; 
-        
-        // ⚠️ 以下の "" の中をご自身の anon (public) キー（eyJhb...）に書き換えてください
+        // ⚠️ ご自身の anon キーをここに貼り付けてください
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5dGl5eXN1aWF5a2VlcGNhb3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNTgxODQsImV4cCI6MjA5ODgzNDE4NH0.UVSxa91oWQqpNAzCGwLhw79wSjTVeZ-dbev9vK-p0YQ"; 
-        // -------------------------------------------------------
 
-        // Supabaseクライアントの初期化
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        let allNewsData = []; // 取得した全データをメモリに保持する配列
 
         async function fetchNews() {
             const container = document.getElementById('news-container');
             const loading = document.getElementById('loading');
 
-            // データベースの「adtech_news」テーブルから最新の30件を取得
             const { data, error } = await supabaseClient
                 .from('adtech_news')
                 .select('*')
                 .order('id', { ascending: false })
-                .limit(30);
+                .limit(50);
 
             if (error) {
-                loading.innerText = "データの取得に失敗しました。接続設定を確認してください。";
+                loading.innerText = "データの取得に失敗しました。";
                 console.error(error);
                 return;
             }
 
             loading.remove();
+            allNewsData = data || [];
+            renderNews('すべて');
+        }
 
-            if (!data || data.length === 0) {
-                container.innerHTML += `<p class="text-sm text-slate-500">データベースとの接続は成功しましたが、まだ記事が1件も入っていません。GitHubの「Actions」から「Run workflow」を一度実行してデータを溜めてください！</p>`;
+        // 🔍 カテゴリで絞り込んで画面に描画する関数
+        function renderNews(selectedCategory) {
+            const container = document.getElementById('news-container');
+            container.innerHTML = '';
+
+            // カテゴリのフィルタリング
+            const filteredData = allNewsData.filter(item => {
+                if (selectedCategory === 'すべて') return true;
+                return item.raw_content === selectedCategory;
+            });
+
+            if (filteredData.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-500 italic">このカテゴリのニュースはまだ蓄積されていません。次回の自動収集をお待ちください。</p>`;
                 return;
             }
 
-            // データを1件ずつカード形式にして画面に出力
-            data.forEach(item => {
+            filteredData.forEach(item => {
                 const date = item.created_at ? new Date(item.created_at).toLocaleDateString('ja-JP') : '日付不明';
                 
-                // タグが配列で届いているか、文字列で届いているかに柔軟に対応する処理
                 let tagsArray = [];
-                if (Array.isArray(item.ai_tags)) {
-                    tagsArray = item.ai_tags;
-                } else if (typeof item.ai_tags === 'string') {
-                    tagsArray = item.ai_tags.replace(/[{}"']/g, '').split(',');
-                }
-                const tagsHtml = tagsArray.map(tag => `<span class="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded-full">#${tag.trim ? tag.trim() : tag}</span>`).join(' ');
+                if (Array.isArray(item.ai_tags)) tagsArray = item.ai_tags;
+                else if (typeof item.ai_tags === 'string') tagsArray = item.ai_tags.replace(/[{}"']/g, '').split(',');
+                const tagsHtml = tagsArray.map(tag => `<span class="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded-full">#${tag.trim()}</span>`).join(' ');
                 
+                // カテゴリに応じたラベルの色を設定
+                let catColor = "bg-slate-700 text-slate-200";
+                if (item.raw_content === '自社プロダクト') catColor = "bg-green-900 text-green-200 border border-green-700";
+                if (item.raw_content === '競合企業情報') catColor = "bg-red-900 text-red-200 border border-red-700";
+                if (item.raw_content === '市況・市場変化') catColor = "bg-blue-900 text-blue-200 border border-blue-700";
+
                 const card = `
                     <div class="bg-slate-800 p-5 rounded-xl border border-slate-750 hover:border-slate-700 transition">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-900 text-blue-200">${item.related_product}</span>
+                        <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+                            <div class="flex gap-2">
+                                <span class="text-xs font-bold px-2 py-0.5 rounded ${catColor}">${item.raw_content || '一般'}</span>
+                                ${item.related_product !== 'なし' ? `<span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-900 text-amber-200">📦 ${item.related_product}</span>` : ''}
+                            </div>
                             <span class="text-xs text-slate-500">${date}</span>
                         </div>
                         <h3 class="text-base font-bold text-slate-100 mb-2">
                             <a href="${item.url}" target="_blank" class="hover:underline hover:text-blue-300 text-blue-400">${item.title}</a>
                         </h3>
                         <p class="text-sm text-slate-300 bg-slate-900 bg-opacity-50 p-3 rounded-lg border border-slate-850 italic">
-                            💡 AI要約: ${item.ai_summary}
+                            💡 AIインサイト: ${item.ai_summary}
                         </p>
                         <div class="flex gap-2 mt-3">${tagsHtml}</div>
                     </div>
                 `;
                 container.innerHTML += card;
             });
+        }
+
+        // 👆 タブがクリックされた時の処理
+        function filterCategory(category) {
+            document.getElementById('category-title').innerText = `最新のAI抽出インサイト (${category})`;
+            
+            // 全タブのスタイルをリセット
+            const buttons = document.querySelectorAll('#tab-container button');
+            buttons.forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('bg-slate-800', 'text-slate-300');
+            });
+
+            // アクティブなタブをハイライト
+            const activeTab = document.getElementById(`tab-${category}`);
+            activeTab.classList.remove('bg-slate-800', 'text-slate-300');
+            activeTab.classList.add('bg-blue-600', 'text-white');
+
+            renderNews(category);
         }
 
         fetchNews();
