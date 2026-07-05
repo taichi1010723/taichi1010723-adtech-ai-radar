@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AJA AdTech Personal AI Radar</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
+
+    <header class="max-w-5xl mx-auto mb-8 border-b border-slate-800 pb-4">
+        <h1 class="text-3xl font-bold text-blue-400 tracking-tight">AJA AdTech Personal AI Radar</h1>
+        <p class="text-sm text-slate-400 mt-1">インクリー / ミエルTV / SSP / AVP / MITA 市場リアルタイム自動監視システム</p>
+    </header>
+
+    <main class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="md:col-span-2 space-y-4" id="news-container">
+            <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-2">最新のAI抽出インサイト</h2>
+            <div id="loading" class="text-slate-400 text-sm italic">データを読み込み中...</div>
+        </div>
+
+        <div class="space-y-4">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-750 bg-opacity-40">
+                <h2 class="text-base font-bold text-white mb-3">📡 監視対象プロダクトマップ</h2>
+                <ul class="text-xs space-y-3 text-slate-300">
+                    <li>🔹 <strong class="text-blue-400">incrie:</strong> CTV（コネクテッドTV）動画広告市場</li>
+                    <li>🔹 <strong class="text-blue-400">ミエルTV:</strong> 運用型テレビCM・地上波効果可視化</li>
+                    <li>🔹 <strong class="text-blue-400">AJA SSP:</strong> プレミアムメディア特化型マネタイズ</li>
+                    <li>🔹 <strong class="text-blue-400">AJA VideoPlatform:</strong> AI動画考査・配信インフラ</li>
+                    <li>🔹 <strong class="text-blue-400">MITA:</strong> テレビCMリアルタイム放送監視</li>
+                </ul>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // --- ⚙️ TaichiさんのSupabase情報に自動最適化済み ---
+        const SUPABASE_URL = "https://iytiyysuiaykeepcaosa.supabase.co"; 
+        
+        // ⚠️ 以下の "" の中をご自身の anon (public) キー（eyJhb...）に書き換えてください
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5dGl5eXN1aWF5a2VlcGNhb3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNTgxODQsImV4cCI6MjA5ODgzNDE4NH0.UVSxa91oWQqpNAzCGwLhw79wSjTVeZ-dbev9vK-p0YQ"; 
+        // -------------------------------------------------------
+
+        // Supabaseクライアントの初期化
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        async function fetchNews() {
+            const container = document.getElementById('news-container');
+            const loading = document.getElementById('loading');
+
+            // データベースの「adtech_news」テーブルから最新の30件を取得
+            const { data, error } = await supabaseClient
+                .from('adtech_news')
+                .select('*')
+                .order('id', { ascending: false })
+                .limit(30);
+
+            if (error) {
+                loading.innerText = "データの取得に失敗しました。接続設定を確認してください。";
+                console.error(error);
+                return;
+            }
+
+            loading.remove();
+
+            if (!data || data.length === 0) {
+                container.innerHTML += `<p class="text-sm text-slate-500">データベースとの接続は成功しましたが、まだ記事が1件も入っていません。GitHubの「Actions」から「Run workflow」を一度実行してデータを溜めてください！</p>`;
+                return;
+            }
+
+            // データを1件ずつカード形式にして画面に出力
+            data.forEach(item => {
+                const date = item.created_at ? new Date(item.created_at).toLocaleDateString('ja-JP') : '日付不明';
+                
+                // タグが配列で届いているか、文字列で届いているかに柔軟に対応する処理
+                let tagsArray = [];
+                if (Array.isArray(item.ai_tags)) {
+                    tagsArray = item.ai_tags;
+                } else if (typeof item.ai_tags === 'string') {
+                    tagsArray = item.ai_tags.replace(/[{}"']/g, '').split(',');
+                }
+                const tagsHtml = tagsArray.map(tag => `<span class="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded-full">#${tag.trim ? tag.trim() : tag}</span>`).join(' ');
+                
+                const card = `
+                    <div class="bg-slate-800 p-5 rounded-xl border border-slate-750 hover:border-slate-700 transition">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-900 text-blue-200">${item.related_product}</span>
+                            <span class="text-xs text-slate-500">${date}</span>
+                        </div>
+                        <h3 class="text-base font-bold text-slate-100 mb-2">
+                            <a href="${item.url}" target="_blank" class="hover:underline hover:text-blue-300 text-blue-400">${item.title}</a>
+                        </h3>
+                        <p class="text-sm text-slate-300 bg-slate-900 bg-opacity-50 p-3 rounded-lg border border-slate-850 italic">
+                            💡 AI要約: ${item.ai_summary}
+                        </p>
+                        <div class="flex gap-2 mt-3">${tagsHtml}</div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        }
+
+        fetchNews();
+    </script>
+</body>
+</html>
