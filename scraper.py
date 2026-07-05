@@ -16,41 +16,49 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def main():
-    # 🔗 2026年現在、確実に稼働している正しい最新RSSのURLに修正しました！
+    # 確実に20件取得できているITmediaを先頭に、URLを少し調整してセット
     rss_urls = [
-        "https://www.cyberagent.co.jp/rss/press/", # サイバーエージェント最新プレス
-        "https://prtimes.jp/main/action.php?run=html&page=rss&category_id=15", # PR TIMES テクノロジーカテゴリ
-        "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml" # ITmedia AIプラス（アドテク・AIの予備）
+        "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
+        "https://www.cyberagent.co.jp/news/press/",
+        "https://prtimes.jp/main/html/index.php"
     ]
     
     articles = []
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
     for url in rss_urls:
         try:
             res = requests.get(url, timeout=15, headers=headers)
             if res.status_code != 200 or not res.content:
-                print(f"⚠️ RSS取得スキップ (ステータス: {res.status_code}): {url}")
                 continue
             
+            # XMLを解析
             root = ET.fromstring(res.content)
-            # RSS 2.0 と Atom (entry) 両方に対応できるように抽出
-            items = root.findall('.//item') or root.findall('.//{http://www.w3.org/2005/Atom}entry')
+            
+            # どんな構造（名前空間）のRSSでも、とにかく「item」か「entry」をすべて探す柔軟な指定
+            items = root.findall('.//item') or root.findall('.//*[{http://www.w3.org/2005/Atom}entry]') or root.findall('.//*')
             
             for item in items:
-                title_node = item.find('title') or item.find('{http://www.w3.org/2005/Atom}title')
-                link_node = item.find('link') or item.find('{http://www.w3.org/2005/Atom}link')
-                
-                if title_node is not None and link_node is not None:
-                    url_text = link_node.text.strip() if link_node.text else (link_node.attrib.get('href', '').strip() if 'href' in link_node.attrib else "")
-                    if title_node.text and url_text:
-                        articles.append({
-                            'title': title_node.text.strip(),
-                            'url': url_text
-                        })
-            print(f"✅ RSS解析成功 ({url}): {len(items)}件見つかりました")
+                # タグ名に「item」や「entry」が含まれている、または親がitemの場合に抽出
+                tag_name = item.tag.lower()
+                if 'item' in tag_name or 'entry' in tag_name:
+                    # 子要素からタイトルとリンクを優しく、かつ確実に探す
+                    title_node = item.find('title') or item.find('.//{http://www.w3.org/2005/Atom}title') or item.find('text')
+                    link_node = item.find('link') or item.find('.//{http://www.w3.org/2005/Atom}link')
+                    
+                    title_text = title_node.text.strip() if title_node is not None and title_node.text else ""
+                    url_text = ""
+                    if link_node is not None:
+                        url_text = link_node.text.strip() if link_node.text else link_node.attrib.get('href', '').strip()
+                    
+                    if title_text and url_text:
+                        # 重複を防ぎつつ追加
+                        if not any(a['url'] == url_text for a in articles):
+                            articles.append({'title': title_text, 'url': url_text})
+                            
+            print(f"✅ RSS解析完了 ({url}): 現在の合計キープ件数 {len(articles)}件")
         except Exception as e:
-            print(f"⚠️ RSS読み込みエラーをスキップ ({url}): {e}")
+            print(f"⚠️ RSS読み込みスキップ ({url}): {e}")
             continue
             
     print(f"📊 配信可能な合計記事数: {len(articles)} 件")
