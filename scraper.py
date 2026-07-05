@@ -13,10 +13,11 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # クライアントの初期化
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# 💡 2026年現在の最新・最適モデル「gemini-2.5-flash」に変更しました！
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 def main():
-    # 2026年現在、確実に稼働しているITmediaのAIニュースRSS
     rss_urls = [
         "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"
     ]
@@ -30,31 +31,24 @@ def main():
             if res.status_code != 200 or not res.content:
                 continue
             
-            # XMLを解析
             root = ET.fromstring(res.content)
-            
-            # 💡【大修正】名前空間（rdf: など）を完全に無視して、すべての要素をフラットに全スキャンする
             all_elements = root.iter()
             
             current_item = None
             for elem in all_elements:
-                # タグ名から「{...}」という名前空間のゴミを削ぎ落とす
                 tag_name = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
                 
-                # <item> タグが始まったら、記事情報の収集スタート
                 if tag_name == 'item':
                     if current_item and current_item.get('title') and current_item.get('url'):
                         articles.append(current_item)
                     current_item = {'title': '', 'url': ''}
                 
-                # <item> の中に入っている title と link を確実にキャッチ
                 if current_item is not None:
                     if tag_name == 'title' and elem.text:
                         current_item['title'] = elem.text.strip()
                     elif tag_name == 'link' and elem.text:
                         current_item['url'] = elem.text.strip()
             
-            # 最後の1件を回収
             if current_item and current_item.get('title') and current_item.get('url'):
                 articles.append(current_item)
                 
