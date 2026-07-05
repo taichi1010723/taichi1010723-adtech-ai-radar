@@ -1,0 +1,19 @@
+name: AdTech News Auto Scraper
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Install
+      run: pip install requests supabase google-generativeai
+    - name: Run
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: python scraper.py
