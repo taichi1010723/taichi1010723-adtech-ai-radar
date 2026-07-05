@@ -16,11 +16,9 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def main():
-    # 確実に20件取得できているITmediaを先頭に、URLを少し調整してセット
+    # 2026年現在、確実に稼働しているITmediaのAIニュースRSS
     rss_urls = [
-        "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml",
-        "https://www.cyberagent.co.jp/news/press/",
-        "https://prtimes.jp/main/html/index.php"
+        "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"
     ]
     
     articles = []
@@ -35,27 +33,31 @@ def main():
             # XMLを解析
             root = ET.fromstring(res.content)
             
-            # どんな構造（名前空間）のRSSでも、とにかく「item」か「entry」をすべて探す柔軟な指定
-            items = root.findall('.//item') or root.findall('.//*[{http://www.w3.org/2005/Atom}entry]') or root.findall('.//*')
+            # 💡【大修正】名前空間（rdf: など）を完全に無視して、すべての要素をフラットに全スキャンする
+            all_elements = root.iter()
             
-            for item in items:
-                # タグ名に「item」や「entry」が含まれている、または親がitemの場合に抽出
-                tag_name = item.tag.lower()
-                if 'item' in tag_name or 'entry' in tag_name:
-                    # 子要素からタイトルとリンクを優しく、かつ確実に探す
-                    title_node = item.find('title') or item.find('.//{http://www.w3.org/2005/Atom}title') or item.find('text')
-                    link_node = item.find('link') or item.find('.//{http://www.w3.org/2005/Atom}link')
-                    
-                    title_text = title_node.text.strip() if title_node is not None and title_node.text else ""
-                    url_text = ""
-                    if link_node is not None:
-                        url_text = link_node.text.strip() if link_node.text else link_node.attrib.get('href', '').strip()
-                    
-                    if title_text and url_text:
-                        # 重複を防ぎつつ追加
-                        if not any(a['url'] == url_text for a in articles):
-                            articles.append({'title': title_text, 'url': url_text})
-                            
+            current_item = None
+            for elem in all_elements:
+                # タグ名から「{...}」という名前空間のゴミを削ぎ落とす
+                tag_name = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+                
+                # <item> タグが始まったら、記事情報の収集スタート
+                if tag_name == 'item':
+                    if current_item and current_item.get('title') and current_item.get('url'):
+                        articles.append(current_item)
+                    current_item = {'title': '', 'url': ''}
+                
+                # <item> の中に入っている title と link を確実にキャッチ
+                if current_item is not None:
+                    if tag_name == 'title' and elem.text:
+                        current_item['title'] = elem.text.strip()
+                    elif tag_name == 'link' and elem.text:
+                        current_item['url'] = elem.text.strip()
+            
+            # 最後の1件を回収
+            if current_item and current_item.get('title') and current_item.get('url'):
+                articles.append(current_item)
+                
             print(f"✅ RSS解析完了 ({url}): 現在の合計キープ件数 {len(articles)}件")
         except Exception as e:
             print(f"⚠️ RSS読み込みスキップ ({url}): {e}")
