@@ -10,20 +10,21 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# 確実に動く互換ライブラリで初期化
+# クライアントの初期化
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
 def main():
-    # 複数のニュースソースを用意（片方がエラーでも、もう片方から取得できるように対策）
+    # 🔗 2026年現在、確実に稼働している正しい最新RSSのURLに修正しました！
     rss_urls = [
-        "https://www.cyberagent.co.jp/news/press/rss.xml",
-        "https://prtimes.jp/technology/main/action.php?run=html&page=rss"
+        "https://www.cyberagent.co.jp/rss/press/", # サイバーエージェント最新プレス
+        "https://prtimes.jp/main/action.php?run=html&page=rss&category_id=15", # PR TIMES テクノロジーカテゴリ
+        "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml" # ITmedia AIプラス（アドテク・AIの予備）
     ]
     
     articles = []
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
     
     for url in rss_urls:
         try:
@@ -32,19 +33,21 @@ def main():
                 print(f"⚠️ RSS取得スキップ (ステータス: {res.status_code}): {url}")
                 continue
             
-            # 前回エラーになったパース部分を完全に保護
             root = ET.fromstring(res.content)
-            items = root.findall('.//item')
+            # RSS 2.0 と Atom (entry) 両方に対応できるように抽出
+            items = root.findall('.//item') or root.findall('.//{http://www.w3.org/2005/Atom}entry')
             
             for item in items:
-                title_node = item.find('title')
-                link_node = item.find('link')
+                title_node = item.find('title') or item.find('{http://www.w3.org/2005/Atom}title')
+                link_node = item.find('link') or item.find('{http://www.w3.org/2005/Atom}link')
                 
                 if title_node is not None and link_node is not None:
-                    articles.append({
-                        'title': title_node.text.strip() if title_node.text else "",
-                        'url': link_node.text.strip() if link_node.text else ""
-                    })
+                    url_text = link_node.text.strip() if link_node.text else (link_node.attrib.get('href', '').strip() if 'href' in link_node.attrib else "")
+                    if title_node.text and url_text:
+                        articles.append({
+                            'title': title_node.text.strip(),
+                            'url': url_text
+                        })
             print(f"✅ RSS解析成功 ({url}): {len(items)}件見つかりました")
         except Exception as e:
             print(f"⚠️ RSS読み込みエラーをスキップ ({url}): {e}")
@@ -60,9 +63,6 @@ def main():
     success_count = 0
     for article in articles[:3]:
         try:
-            if not article['title'] or not article['url']:
-                continue
-                
             print(f"🔍 AI分析中: {article['title'][:15]}...")
             
             prompt = f"「{article['title']}」を1行(80文字以内)で要約し、SUMMARY: (要約) のフォーマットのみで出力して。"
