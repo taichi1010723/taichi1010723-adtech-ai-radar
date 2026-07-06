@@ -14,6 +14,7 @@
         <p class="text-sm text-slate-400 mt-1">インクリー / ミエルTV / SSP / AVP / MITA 市場リアルタイム自動監視システム</p>
     </header>
 
+    <!-- 📊 docomoサイト風カテゴリタブ -->
     <div class="max-w-5xl mx-auto mb-6">
         <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-3" id="tab-container">
             <button onclick="filterCategory('すべて')" class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white transition" id="tab-すべて">📊 すべて</button>
@@ -25,6 +26,7 @@
     </div>
 
     <main class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- ニュースのタイムラインを表示する場所 -->
         <div class="md:col-span-2 space-y-4">
             <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-2" id="category-title">最新のAI抽出インサイト (すべて)</h2>
             <div id="news-container" class="space-y-4">
@@ -32,6 +34,7 @@
             </div>
         </div>
 
+        <!-- 右側のサイドバー -->
         <div class="space-y-4">
             <div class="bg-slate-800 p-4 rounded-xl border border-slate-750 bg-opacity-40">
                 <h2 class="text-base font-bold text-white mb-3">📡 監視対象プロダクトマップ</h2>
@@ -47,24 +50,21 @@
     </main>
 
     <script>
-        // --- ⚙️ 最適化済みの接続設定 ---
         const SUPABASE_URL = "https://iytiyysuiaykeepcaosa.supabase.co"; 
         const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5dGl5eXN1aWF5a2VlcGNhb3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNTgxODQsImV4cCI6MjA5ODgzNDE4NH0.UVSxa91oWQqpNAzCGwLhw79wSjTVeZ-dbev9vK-p0YQ"; 
 
-        // Supabaseクライアントの初期化
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        let allNewsData = []; // 取得した全データをメモリに保持する配列
+        let allNewsData = [];
 
         async function fetchNews() {
             const container = document.getElementById('news-container');
             const loading = document.getElementById('loading');
 
-            // データベースから最新の50件を取得
             const { data, error } = await supabaseClient
                 .from('adtech_news')
                 .select('*')
                 .order('id', { ascending: false })
-                .limit(50);
+                .limit(40);
 
             if (error) {
                 loading.innerText = "データの取得に失敗しました。";
@@ -77,26 +77,94 @@
             renderNews('すべて');
         }
 
-        // 🔍 カテゴリで絞り込んで画面に描画する関数
         function renderNews(selectedCategory) {
             const container = document.getElementById('news-container');
             container.innerHTML = '';
 
-            // カテゴリのフィルタリング
             const filteredData = allNewsData.filter(item => {
                 if (selectedCategory === 'すべて') return true;
                 return item.raw_content === selectedCategory;
             });
 
             if (filteredData.length === 0) {
-                container.innerHTML = `<p class="text-sm text-slate-500 italic">このカテゴリのニュースはまだ蓄積されていません。次回の自動収集をお待ちください。</p>`;
+                container.innerHTML = `<p class="text-sm text-slate-500 italic">このカテゴリのニュースはまだ蓄積されていません。Actionsを実行してデータを取得してください。</p>`;
                 return;
             }
 
-            // データを1件ずつカード形式にして画面に出力
             filteredData.forEach(item => {
                 const date = item.created_at ? new Date(item.created_at).toLocaleDateString('ja-JP') : '日付不明';
                 
-                let tagsArray = [];
-                if (Array.isArray(item.ai_tags)) tagsArray = item.ai_tags;
-                else if (typeof item.ai_tags === 'string') tagsArray = item.ai_
+                // AI分析特製パックのパースロジック
+                let imp = "B", summary = item.ai_summary, opp = "分析中", chg = "分析中", need = "分析中", prop = "分析中";
+                if (item.ai_summary && item.ai_summary.startsWith("||")) {
+                    const parts = item.ai_summary.split("||");
+                    if (parts.length >= 7) {
+                        imp = parts[1];
+                        summary = parts[2];
+                        opp = parts[3];
+                        chg = parts[4];
+                        need = parts[5];
+                        prop = parts[6];
+                    }
+                }
+
+                // 重要度SABCに応じた色バッジ
+                let impColor = "bg-slate-700 text-slate-200";
+                if (imp === 'S') impColor = "bg-red-600 text-white font-extrabold animate-pulse";
+                if (imp === 'A') impColor = "bg-amber-500 text-slate-900 font-bold";
+                if (imp === 'B') impColor = "bg-blue-500 text-white";
+                if (imp === 'C') impColor = "bg-slate-650 text-slate-300";
+
+                let catColor = "bg-slate-800 text-slate-300 border border-slate-700";
+                if (item.raw_content === '自社プロダクト') catColor = "bg-green-950 text-green-300 border border-green-800";
+                if (item.raw_content === '競合企業情報') catColor = "bg-red-950 text-red-300 border border-red-800";
+                if (item.raw_content === '市況・市場変化') catColor = "bg-blue-950 text-blue-300 border border-blue-800";
+
+                const card = `
+                    <div class="bg-slate-800 p-5 rounded-xl border border-slate-750 hover:border-slate-700 transition space-y-3">
+                        <div class="flex justify-between items-center flex-wrap gap-2">
+                            <div class="flex gap-2 items-center">
+                                <span class="text-xs px-2 py-0.5 rounded font-black tracking-wider ${impColor}">重要度 ${imp}</span>
+                                <span class="text-xs px-2 py-0.5 rounded ${catColor}">${item.raw_content || '一般'}</span>
+                                ${item.related_product !== 'なし' && item.related_product !== null ? `<span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">📦 ${item.related_product}</span>` : ''}
+                            </div>
+                            <span class="text-xs text-slate-500">${date}</span>
+                        </div>
+                        
+                        <h3 class="text-base font-bold text-slate-100">
+                            <a href="${item.url}" target="_blank" class="hover:underline hover:text-blue-300 text-blue-400">${item.title}</a>
+                        </h3>
+
+                        <!-- 🗂️ 重要5項目の構造化グリッドデザイン -->
+                        <div class="grid grid-cols-1 gap-2 text-xs mt-3 bg-slate-900 bg-opacity-60 p-3 rounded-lg border border-slate-850">
+                            <div><span class="text-blue-400 font-bold block mb-0.5">📝 ニュース要約</span><p class="text-slate-200 pl-2 border-l-2 border-slate-700">${summary}</p></div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
+                                <div><span class="text-green-400 font-bold block mb-0.5">🚀 AJAの機会 (チャンス)</span><p class="text-slate-300 pl-2 border-l-2 border-green-800">${opp}</p></div>
+                                <div><span class="text-red-400 font-bold block mb-0.5">⚠️ AJAの課題 (リスク)</span><p class="text-slate-300 pl-2 border-l-2 border-red-800">${chg}</p></div>
+                            </div>
+                            <div class="mt-1"><span class="text-purple-400 font-bold block mb-0.5">💡 クライアントが求めていること</span><p class="text-slate-300 pl-2 border-l-2 border-purple-800">${need}</p></div>
+                            <div class="mt-1 bg-blue-950 bg-opacity-40 p-2 rounded border border-blue-900"><span class="text-amber-400 font-bold block mb-0.5">🔥 提案営業アプローチ方法</span><p class="text-slate-200 font-medium">${prop}</p></div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += card;
+            });
+        }
+
+        function filterCategory(category) {
+            document.getElementById('category-title').innerText = `最新のAI抽出インサイト (${category})`;
+            const buttons = document.querySelectorAll('#tab-container button');
+            buttons.forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'text-white');
+                btn.classList.add('bg-slate-800', 'text-slate-300');
+            });
+            const activeTab = document.getElementById(`tab-${category}`);
+            activeTab.classList.remove('bg-slate-800', 'text-slate-300');
+            activeTab.classList.add('bg-blue-600', 'text-white');
+            renderNews(category);
+        }
+
+        fetchNews();
+    </script>
+</body>
+</html>
