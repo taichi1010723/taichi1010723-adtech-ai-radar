@@ -14,8 +14,8 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
 
-# 💡 gemini-2.5-flashの回数制限を回避するため、別枠の1.5-flashで即時稼働させます
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 💡 2026年現在、唯一確実に動く最新モデル「gemini-2.5-flash」に再設定
+model = genai.GenerativeModel('gemini-2.5-flash')
 
 def main():
     # ITmediaのAIニュースRSS
@@ -65,22 +65,19 @@ def main():
         return
         
     success_count = 0
-    # 最新の3件をAI分析して保存
+    # 💡 1回の実行で処理する件数を「最新の1件だけ」にして無料枠を限界まで節約！
     for article in articles:
-        # 3件の保存に成功したらその時点でループを抜けて終了（無料API枠の最大節約）
-        if success_count >= 3:
+        if success_count >= 1:
             break
             
         try:
-            # 🛑 すでに保存済みのURLかチェック（無駄なAPI消費をここで防ぐ）
+            # すでに保存済みのURLかチェック（重複による無駄なAI消費を防ぐ）
             existing = supabase.table("adtech_news").select("id").eq("url", article['url']).execute()
             if existing.data:
-                print(f"⏭️ 取得済みのためスキップ: {article['title'][:15]}...")
                 continue
 
             print(f"🔍 営業特化AI分析中: {article['title'][:15]}...")
             
-            # 🔥 SABC重要度、機会・課題、営業アプローチを導き出すプロンプト
             prompt = f"""
             以下のニュースを読み、AJA AdTech（incrie, ミエルTV, AJA SSP, AVP, MITA）のビジネス・営業観点で深く分析し、指定のフォーマットのみで出力してください。
 
@@ -120,7 +117,7 @@ def main():
                     if line.startswith(f"{key}:"):
                         parsed[key] = line.replace(f"{key}:", "").strip()
 
-            # 特製パックにデータを結合して格納
+            # 特製パックにデータを結合
             combined_summary = f"||{parsed['IMPORTANCE']}||{parsed['SUMMARY']}||{parsed['OPPORTUNITY']}||{parsed['CHALLENGE']}||{parsed['CLIENT_NEED']}||{parsed['PROPOSAL']}"
 
             data = {
