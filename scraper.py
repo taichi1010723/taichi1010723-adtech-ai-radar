@@ -13,73 +13,81 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 # クライアントの初期化
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
-
-# 💡 2026年現在、唯一確実に動く最新モデル「gemini-2.5-flash」に再設定
 model = genai.GenerativeModel('gemini-2.5-flash')
 
 def main():
-    # ITmediaのAIニュースRSS
+    # 🔗 広告業界の主要ニュースフィード
     rss_urls = [
-        "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"
+        "https://www.cyberagent.co.jp/rss/press/",                 # サイバーエージェント
+        "https://www.dentsu.co.jp/news/rss/press.xml",              # 電通グループ
+        "https://www.hakuhodo.co.jp/news/pressrelease/feed",       # 博報堂
+        "https://prtimes.jp/main/action.php?run=html&page=rss&category_id=15" # アドテク・ITベンダー
     ]
     
-    articles = []
+    raw_articles = []
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
+    # 1. 各社からニュースを大量スキャン（ここは無限に取得可能）
     for url in rss_urls:
         try:
             res = requests.get(url, timeout=15, headers=headers)
-            if res.status_code != 200 or not res.content:
-                continue
+            if res.status_code != 200 or not res.content: continue
             
             root = ET.fromstring(res.content)
             all_elements = root.iter()
-            
             current_item = None
             for elem in all_elements:
                 tag_name = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
-                
-                if tag_name == 'item':
+                if tag_name in ['item', 'entry']:
                     if current_item and current_item.get('title') and current_item.get('url'):
-                        articles.append(current_item)
+                        raw_articles.append(current_item)
                     current_item = {'title': '', 'url': ''}
-                
                 if current_item is not None:
-                    if tag_name == 'title' and elem.text:
-                        current_item['title'] = elem.text.strip()
-                    elif tag_name == 'link' and elem.text:
-                        current_item['url'] = elem.text.strip()
-            
+                    if tag_name == 'title' and elem.text: current_item['title'] = elem.text.strip()
+                    elif tag_name == 'link':
+                        u = elem.text.strip() if elem.text else elem.attrib.get('href', '').strip()
+                        if u: current_item['url'] = u
             if current_item and current_item.get('title') and current_item.get('url'):
-                articles.append(current_item)
-                
-            print(f"✅ RSS解析完了 ({url}): 現在の合計キープ件数 {len(articles)}件")
-        except Exception as e:
-            print(f"⚠️ RSS読み込みスキップ ({url}): {e}")
-            continue
-            
-    print(f"📊 配信可能な合計記事数: {len(articles)} 件")
+                raw_articles.append(current_item)
+        except Exception as e: continue
+
+    print(f"📊 ネット上からスキャンした総記事数: {len(raw_articles)} 件")
     
-    if not articles:
-        print("❌ ニュースを1件も解析できませんでした。処理を終了します。")
+    # 2. 🔥【作戦①】アドテク・広告業界に直結する重要キーワードで「超・厳選」
+    keywords = [
+        "広告", "アド", "マーケティング", "プロモーション", "テレビ", "CM", "CTV", "コネクテッド", 
+        "メディア", "AI", "データ", "サイバーエージェント", "電通", "博報堂", "AJA", "動画", "リサーチ"
+    ]
+    
+    target_articles = []
+    for article in raw_articles:
+        title_lower = article['title'].lower()
+        # タイトルにキーワードが1つでも含まれているかチェック
+        if any(kw in title_lower for kw in keywords):
+            target_articles.append(article)
+            
+    print(f"🎯 キーワードで厳選された重要記事数: {len(target_articles)} 件")
+    
+    if not target_articles:
+        print("❌ 本日のニュースに重要キーワードにヒットする記事はありませんでした。")
         return
         
     success_count = 0
-    # 💡 1回の実行で処理する件数を「最新の1件だけ」にして無料枠を限界まで節約！
-    for article in articles:
-        if success_count >= 1:
+    # 3. 厳選された重要記事の中から、まだ保存していない最新の「最大5件」をAI分析して格納
+    # 無料枠（1日20回）に余裕を持たせつつ、毎日しっかりボリュームを増やす設定（5件）
+    for article in target_articles:
+        if success_count >= 5: 
             break
             
         try:
-            # すでに保存済みのURLかチェック（重複による無駄なAI消費を防ぐ）
+            # すでに保存済みならパス
             existing = supabase.table("adtech_news").select("id").eq("url", article['url']).execute()
-            if existing.data:
-                continue
+            if existing.data: continue
 
-            print(f"🔍 営業特化AI分析中: {article['title'][:15]}...")
+            print(f"🔍 厳選重要ニュースのAI分析中: {article['title'][:15]}...")
             
             prompt = f"""
-            以下のニュースを読み、AJA AdTech（incrie, ミエルTV, AJA SSP, AVP, MITA）のビジネス・営業観点で深く分析し、指定のフォーマットのみで出力してください。
+            以下の広告業界の重要ニュースを読み、AJA AdTech（incrie, ミエルTV, AJA SSP, AVP, MITA）のビジネス・営業観点で深く分析し、指定のフォーマットのみで出力してください。
 
             【ニュースタイトル】: {article['title']}
 
@@ -117,7 +125,6 @@ def main():
                     if line.startswith(f"{key}:"):
                         parsed[key] = line.replace(f"{key}:", "").strip()
 
-            # 特製パックにデータを結合
             combined_summary = f"||{parsed['IMPORTANCE']}||{parsed['SUMMARY']}||{parsed['OPPORTUNITY']}||{parsed['CHALLENGE']}||{parsed['CLIENT_NEED']}||{parsed['PROPOSAL']}"
 
             data = {
@@ -131,8 +138,7 @@ def main():
             
             supabase.table("adtech_news").insert(data).execute()
             success_count += 1
-            print(f"🎉 保存成功: [{parsed['IMPORTANCE']}]ランク")
-            
+            print(f"🎉 保存成功: [{parsed['IMPORTANCE']}]ランク ({parsed['CATEGORY']})")
         except Exception as e:
             print(f"⚠️ エラー回避: {e}")
             continue
