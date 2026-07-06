@@ -5,15 +5,20 @@ import xml.etree.ElementTree as ET
 import google.generativeai as genai
 from supabase import create_client
 
+# 環境変数の読み込み
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
+# クライアントの初期化
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-2.5-flash')
+
+# 💡 gemini-2.5-flashの回数制限を回避するため、別枠の1.5-flashで即時稼働させます
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def main():
+    # ITmediaのAIニュースRSS
     rss_urls = [
         "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml"
     ]
@@ -24,35 +29,58 @@ def main():
     for url in rss_urls:
         try:
             res = requests.get(url, timeout=15, headers=headers)
-            if res.status_code != 200 or not res.content: continue
+            if res.status_code != 200 or not res.content:
+                continue
+            
             root = ET.fromstring(res.content)
             all_elements = root.iter()
+            
             current_item = None
             for elem in all_elements:
                 tag_name = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+                
                 if tag_name == 'item':
                     if current_item and current_item.get('title') and current_item.get('url'):
                         articles.append(current_item)
                     current_item = {'title': '', 'url': ''}
+                
                 if current_item is not None:
-                    if tag_name == 'title' and elem.text: current_item['title'] = elem.text.strip()
-                    elif tag_name == 'link' and elem.text: current_item['url'] = elem.text.strip()
+                    if tag_name == 'title' and elem.text:
+                        current_item['title'] = elem.text.strip()
+                    elif tag_name == 'link' and elem.text:
+                        current_item['url'] = elem.text.strip()
+            
             if current_item and current_item.get('title') and current_item.get('url'):
                 articles.append(current_item)
-        except Exception as e: continue
+                
+            print(f"✅ RSS解析完了 ({url}): 現在の合計キープ件数 {len(articles)}件")
+        except Exception as e:
+            print(f"⚠️ RSS読み込みスキップ ({url}): {e}")
+            continue
             
     print(f"📊 配信可能な合計記事数: {len(articles)} 件")
-    if not articles: return
+    
+    if not articles:
+        print("❌ ニュースを1件も解析できませんでした。処理を終了します。")
+        return
         
     success_count = 0
-    for article in articles[:3]:
+    # 最新の3件をAI分析して保存
+    for article in articles:
+        # 3件の保存に成功したらその時点でループを抜けて終了（無料API枠の最大節約）
+        if success_count >= 3:
+            break
+            
         try:
+            # 🛑 すでに保存済みのURLかチェック（無駄なAPI消費をここで防ぐ）
             existing = supabase.table("adtech_news").select("id").eq("url", article['url']).execute()
-            if existing.data: continue
+            if existing.data:
+                print(f"⏭️ 取得済みのためスキップ: {article['title'][:15]}...")
+                continue
 
             print(f"🔍 営業特化AI分析中: {article['title'][:15]}...")
             
-            # 🔥 SABC重要度、機会・課題、営業アプローチを導き出す超強力プロンプト
+            # 🔥 SABC重要度、機会・課題、営業アプローチを導き出すプロンプト
             prompt = f"""
             以下のニュースを読み、AJA AdTech（incrie, ミエルTV, AJA SSP, AVP, MITA）のビジネス・営業観点で深く分析し、指定のフォーマットのみで出力してください。
 
@@ -67,7 +95,7 @@ def main():
             6. カテゴリ: [自社プロダクト / 競合企業情報 / 市況・市場変化 / その他トレンド] から1つ。
             7. 関連製品: [incrie / ミエルTV / AJA SSP / AJA VideoPlatform / MITA / なし] から1つ。
 
-            【出力フォーマット】（余計な装飾や解説は一切含めず、この通りに出力してください）
+            【出力フォーマット】（余計な解説は一切含めず、この通りに出力してください）
             IMPORTANCE: (S、A、B、Cのいずれか1文字)
             SUMMARY: (ニュースの簡潔な要約)
             OPPORTUNITY: (AJAにとっての機会・チャンス)
@@ -82,8 +110,8 @@ def main():
             lines = response.text.strip().split('\n')
             
             parsed = {
-                "IMPORTANCE": "B", "SUMMARY": article['title'], "OPPORTUNITY": "なし", 
-                "CHALLENGE": "なし", "CLIENT_NEED": "情報収集中", "PROPOSAL": "提案資料の作成",
+                "IMPORTANCE": "B", "SUMMARY": article['title'], "OPPORTUNITY": "分析中", 
+                "CHALLENGE": "分析中", "CLIENT_NEED": "情報収集中", "PROPOSAL": "提案資料の作成",
                 "CATEGORY": "その他トレンド", "PRODUCT": "なし"
             }
             
@@ -92,14 +120,14 @@ def main():
                     if line.startswith(f"{key}:"):
                         parsed[key] = line.replace(f"{key}:", "").strip()
 
-            # 特製フォーマットにデータを結合して、既存のai_summaryに格納（フロントで分解して表示）
+            # 特製パックにデータを結合して格納
             combined_summary = f"||{parsed['IMPORTANCE']}||{parsed['SUMMARY']}||{parsed['OPPORTUNITY']}||{parsed['CHALLENGE']}||{parsed['CLIENT_NEED']}||{parsed['PROPOSAL']}"
 
             data = {
                 "title": article['title'], 
                 "url": article['url'], 
                 "raw_content": parsed['CATEGORY'], 
-                "ai_summary": combined_summary, # 🔥 特製パック
+                "ai_summary": combined_summary, 
                 "related_product": parsed['PRODUCT'], 
                 "ai_tags": [parsed['IMPORTANCE'] + "ランク"]
             }
@@ -107,6 +135,7 @@ def main():
             supabase.table("adtech_news").insert(data).execute()
             success_count += 1
             print(f"🎉 保存成功: [{parsed['IMPORTANCE']}]ランク")
+            
         except Exception as e:
             print(f"⚠️ エラー回避: {e}")
             continue
