@@ -14,7 +14,7 @@
         <p class="text-sm text-slate-400 mt-1">インクリー / ミエルTV / SSP / AVP / MITA 市場リアルタイム自動監視システム</p>
     </header>
 
-    <!-- 📊 docomoサイト風カテゴリタブ -->
+    <!-- 📊 カテゴリ選択タブ -->
     <div class="max-w-5xl mx-auto mb-6">
         <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-3" id="tab-container">
             <button onclick="filterCategory('すべて')" class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white transition" id="tab-すべて">📊 すべて</button>
@@ -26,7 +26,6 @@
     </div>
 
     <main class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- ニュースのタイムラインを表示する場所 -->
         <div class="md:col-span-2 space-y-4">
             <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-2" id="category-title">最新のAI抽出インサイト (すべて)</h2>
             <div id="news-container" class="space-y-4">
@@ -60,6 +59,7 @@
             const container = document.getElementById('news-container');
             const loading = document.getElementById('loading');
 
+            // 🔍【デバッグ強化】エラーの中身を画面に引き出す設定
             const { data, error } = await supabaseClient
                 .from('adtech_news')
                 .select('*')
@@ -67,7 +67,9 @@
                 .limit(40);
 
             if (error) {
-                loading.innerText = "データの取得に失敗しました。";
+                // 🛑 万が一エラーがあれば、何が悪いかを文字として画面に叩き出します！
+                loading.innerHTML = `<span class="text-red-400 font-bold block">❌ Supabase接続エラーが発生しました</span>
+                                     <p class="text-xs bg-black p-3 rounded text-amber-500 mt-2 font-mono">Code: ${error.code}<br>Message: ${error.message}<br>Details: ${error.details}</p>`;
                 console.error(error);
                 return;
             }
@@ -87,14 +89,13 @@
             });
 
             if (filteredData.length === 0) {
-                container.innerHTML = `<p class="text-sm text-slate-500 italic">このカテゴリのニュースはまだ蓄積されていません。Actionsを実行してデータを取得してください。</p>`;
+                container.innerHTML = `<p class="text-sm text-slate-500 italic">このカテゴリのニュースはまだ蓄積されていません。Actionsが正常にデータを保存するのをお待ちください。</p>`;
                 return;
             }
 
             filteredData.forEach(item => {
                 const date = item.created_at ? new Date(item.created_at).toLocaleDateString('ja-JP') : '日付不明';
                 
-                // AI分析特製パックのパースロジック
                 let imp = "B", summary = item.ai_summary, opp = "分析中", chg = "分析中", need = "分析中", prop = "分析中";
                 if (item.ai_summary && item.ai_summary.startsWith("||")) {
                     const parts = item.ai_summary.split("||");
@@ -108,9 +109,8 @@
                     }
                 }
 
-                // 重要度SABCに応じた色バッジ
                 let impColor = "bg-slate-700 text-slate-200";
-                if (imp === 'S') impColor = "bg-red-600 text-white font-extrabold animate-pulse";
+                if (imp === 'S') impColor = "bg-red-600 text-white font-extrabold";
                 if (imp === 'A') impColor = "bg-amber-500 text-slate-900 font-bold";
                 if (imp === 'B') impColor = "bg-blue-500 text-white";
                 if (imp === 'C') impColor = "bg-slate-650 text-slate-300";
@@ -135,7 +135,6 @@
                             <a href="${item.url}" target="_blank" class="hover:underline hover:text-blue-300 text-blue-400">${item.title}</a>
                         </h3>
 
-                        <!-- 🗂️ 重要5項目の構造化グリッドデザイン -->
                         <div class="grid grid-cols-1 gap-2 text-xs mt-3 bg-slate-900 bg-opacity-60 p-3 rounded-lg border border-slate-850">
                             <div><span class="text-blue-400 font-bold block mb-0.5">📝 ニュース要約</span><p class="text-slate-200 pl-2 border-l-2 border-slate-700">${summary}</p></div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
