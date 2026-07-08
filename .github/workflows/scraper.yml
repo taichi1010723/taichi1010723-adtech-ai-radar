@@ -1,19 +1,37 @@
 name: AdTech News Auto Scraper
+
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *' # 毎日自動実行
+  workflow_dispatch: # 手動ボタンも有効
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 💡 生成したdata.jsonを自動でリポジトリに保存するための権限
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    - name: Install
-      run: pip install requests supabase google-generativeai
-    - name: Run
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+
+    - name: Run scraper
       run: python scraper.py
+
+    # 💡 新しく生成・更新された data.json を自動でGitにコミットして保存する最後のステップ
+    - name: Commit and Push Changes
+      run: |
+        git config --local user.email "actions@github.com"
+        git config --local user.name "GitHub Actions"
+        git add data.json
+        git diff --quiet && git diff --staged --quiet || (git commit -m "🚀 Auto-update news data" && git push)
