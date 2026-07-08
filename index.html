@@ -6,44 +6,76 @@
     <title>AJA AdTech Personal AI Radar</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 🎨 スクロールで黄色から水色に滑らかに変わる魔法の背景スタイル */
+        body {
+            background: linear-gradient(180deg, #fef08a 0%, #e0f2fe 50%, #bae6fd 100%);
+            background-attachment: fixed;
+            transition: background 0.5s ease;
+        }
+        /* ✨ すりガラス風（半透明）のカードエフェクト */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.45);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen p-6">
+<body class="text-slate-800 min-h-screen p-6 font-sans">
 
-    <header class="max-w-5xl mx-auto mb-6 border-b border-slate-800 pb-4">
-        <h1 class="text-3xl font-bold text-blue-400 tracking-tight">AJA AdTech Personal AI Radar</h1>
-        <p class="text-sm text-slate-400 mt-1">インクリー / ミエルTV / SSP / AVP / MITA 市場リアルタイム自動監視システム</p>
+    <header class="max-w-6xl mx-auto mb-6 glass-card p-6 rounded-2xl shadow-sm">
+        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+            🚀 AJA AdTech Personal AI Radar
+        </h1>
+        <p class="text-sm text-slate-600 mt-1 font-medium">【インクリー / ミエルTV / AJA SSP / AVP / MITA】 広告市場リアルタイム分析ダッシュボード</p>
     </header>
 
-    <!-- 📊 カテゴリ選択タブ -->
-    <div class="max-w-5xl mx-auto mb-6">
-        <div class="flex flex-wrap gap-2 border-b border-slate-800 pb-3" id="tab-container">
-            <button onclick="filterCategory('すべて')" class="px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white transition" id="tab-すべて">📊 すべて</button>
-            <button onclick="filterCategory('自社プロダクト')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-自社プロダクト">🏢 自社プロダクト・CA</button>
-            <button onclick="filterCategory('競合企業情報')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-競合企業情報">⚔️ 競合企業情報</button>
-            <button onclick="filterCategory('市況・市場変化')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-市況・市場変化">📈 市況・市場変化</button>
-            <button onclick="filterCategory('その他トレンド')" class="px-4 py-2 text-sm font-medium rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 transition" id="tab-その他トレンド">🤖 その他トレンド</button>
+    <div class="max-w-6xl mx-auto mb-6 sticky top-2 z-50">
+        <div class="flex flex-wrap gap-2 glass-nav p-2 rounded-xl shadow-sm" id="tab-container">
+            <button onclick="filterCategory('過去ログ')" class="px-4 py-2 text-sm font-bold rounded-lg bg-slate-900 text-white shadow transition" id="tab-過去ログ">📁 過去ログ (全ニュース網羅)</button>
+            <button onclick="filterCategory('自社プロダクト')" class="px-4 py-2 text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-white transition" id="tab-自社プロダクト">🏢 自社プロダクト・CA</button>
+            <button onclick="filterCategory('競合企業情報')" class="px-4 py-2 text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-white transition" id="tab-競合企業情報">⚔️ 競合企業情報</button>
+            <button onclick="filterCategory('市況・市場変化')" class="px-4 py-2 text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-white transition" id="tab-市況・市場変化">📈 市況・市場変化</button>
+            <button onclick="filterCategory('その他トレンド')" class="px-4 py-2 text-sm font-bold rounded-lg bg-slate-200 text-slate-700 hover:bg-white transition" id="tab-その他トレンド">🤖 その他トレンド</button>
         </div>
     </div>
 
-    <main class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+    <main class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="md:col-span-2 space-y-4">
-            <h2 class="text-lg font-semibold text-white border-l-4 border-blue-500 pl-2" id="category-title">最新のAI抽出インサイト (すべて)</h2>
+            <h2 class="text-xl font-black text-slate-900 border-l-4 border-slate-900 pl-2" id="category-title">過去ログ (全ニュース網羅)</h2>
             <div id="news-container" class="space-y-4">
-                <div id="loading" class="text-slate-400 text-sm italic">データを読み込み中...</div>
+                <div id="loading" class="text-slate-600 text-sm italic font-medium">Supabaseから最新データを安全に読み込み中...</div>
             </div>
         </div>
 
-        <!-- 右側のサイドバー -->
         <div class="space-y-4">
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-750 bg-opacity-40">
-                <h2 class="text-base font-bold text-white mb-3">📡 監視対象プロダクトマップ</h2>
-                <ul class="text-xs space-y-3 text-slate-300">
-                    <li>🔹 <strong class="text-blue-400">incrie:</strong> CTV（コネクテッドTV）動画広告市場</li>
-                    <li>🔹 <strong class="text-blue-400">ミエルTV:</strong> 運用型テレビCM・地上波効果可視化</li>
-                    <li>🔹 <strong class="text-blue-400">AJA SSP:</strong> プレミアムメディア特化型マネタイズ</li>
-                    <li>🔹 <strong class="text-blue-400">AJA VideoPlatform:</strong> AI動画考査・配信インフラ</li>
-                    <li>🔹 <strong class="text-blue-400">MITA:</strong> テレビCMリアルタイム放送監視</li>
-                </ul>
+            <div class="glass-card p-5 rounded-2xl shadow-sm sticky top-24">
+                <h2 class="text-lg font-bold text-slate-900 mb-3 flex items-center gap-1">📡 AJA武器・プロダクトマップ</h2>
+                <div class="text-xs space-y-3 text-slate-700 font-medium">
+                    <div class="p-2.5 bg-white bg-opacity-40 rounded-xl border border-white border-opacity-30">
+                        <strong class="text-blue-600 block text-sm mb-0.5">🔹 incrie (インクリー)</strong>
+                        <p>急成長するCTV（コネクテッドTV）動画広告市場の特化型プラットフォーム。若年層のテレビ離れをハックする主軸。</p>
+                    </div>
+                    <div class="p-2.5 bg-white bg-opacity-40 rounded-xl border border-white border-opacity-30">
+                        <strong class="text-emerald-600 block text-sm mb-0.5">🔹 ミエルTV</strong>
+                        <p>地上波テレビCMの広告効果をリアルタイムで「可視化」し、デジタルと同じ感覚で運用可能にするツール。</p>
+                    </div>
+                    <div class="p-2.5 bg-white bg-opacity-40 rounded-xl border border-white border-opacity-30">
+                        <strong class="text-amber-600 block text-sm mb-0.5">🔹 MITA (ミタ)</strong>
+                        <p>テレビCMのリアルタイム放送監視システム。他社には真似できない24時間の厳密なデータ突合を実現。</p>
+                    </div>
+                    <div class="p-2.5 bg-white bg-opacity-40 rounded-xl border border-white border-opacity-30">
+                        <strong class="text-slate-700 block text-sm mb-0.5">🔹 AJA SSP / AJA VideoPlatform</strong>
+                        <p>大手メディアのメディアマネタイズ（SSP）および、AIを活用した超高速な動画広告考査・配信インフラ。</p>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -59,24 +91,20 @@
             const container = document.getElementById('news-container');
             const loading = document.getElementById('loading');
 
-            // 🔍【デバッグ強化】エラーの中身を画面に引き出す設定
             const { data, error } = await supabaseClient
                 .from('adtech_news')
                 .select('*')
                 .order('id', { ascending: false })
-                .limit(40);
+                .limit(100); # 💡 全網羅できるように取得件数を100件に拡大！
 
             if (error) {
-                // 🛑 万が一エラーがあれば、何が悪いかを文字として画面に叩き出します！
-                loading.innerHTML = `<span class="text-red-400 font-bold block">❌ Supabase接続エラーが発生しました</span>
-                                     <p class="text-xs bg-black p-3 rounded text-amber-500 mt-2 font-mono">Code: ${error.code}<br>Message: ${error.message}<br>Details: ${error.details}</p>`;
-                console.error(error);
+                loading.innerHTML = `<p class="text-red-500 font-bold">データ取得エラー: ${error.message}</p>`;
                 return;
             }
 
             loading.remove();
             allNewsData = data || [];
-            renderNews('すべて');
+            renderNews('過去ログ');
         }
 
         function renderNews(selectedCategory) {
@@ -84,19 +112,20 @@
             container.innerHTML = '';
 
             const filteredData = allNewsData.filter(item => {
-                if (selectedCategory === 'すべて') return true;
+                if (selectedCategory === '過去ログ') return true;
                 return item.raw_content === selectedCategory;
             });
 
             if (filteredData.length === 0) {
-                container.innerHTML = `<p class="text-sm text-slate-500 italic">このカテゴリのニュースはまだ蓄積されていません。Actionsが正常にデータを保存するのをお待ちください。</p>`;
+                container.innerHTML = `<p class="text-sm text-slate-500 italic p-4 glass-card rounded-xl">このカテゴリのニュースはまだありません。次回の自動収集をお待ちください。</p>`;
                 return;
             }
 
             filteredData.forEach(item => {
                 const date = item.created_at ? new Date(item.created_at).toLocaleDateString('ja-JP') : '日付不明';
                 
-                let imp = "B", summary = item.ai_summary, opp = "分析中", chg = "分析中", need = "分析中", prop = "分析中";
+                // 🛑 古い形式のテキストが混ざっていてもパニックを起こさない、鉄壁のガードロジックを追加
+                let imp = "A", summary = item.title, opp = "分析中...", chg = "分析中...", need = "分析中...", prop = "分析中...";
                 if (item.ai_summary && item.ai_summary.startsWith("||")) {
                     const parts = item.ai_summary.split("||");
                     if (parts.length >= 7) {
@@ -107,42 +136,43 @@
                         need = parts[5];
                         prop = parts[6];
                     }
+                } else if (item.ai_summary) {
+                    summary = item.ai_summary; # 古いテキストなら要約欄にそのまま逃がす
                 }
 
-                let impColor = "bg-slate-700 text-slate-200";
-                if (imp === 'S') impColor = "bg-red-600 text-white font-extrabold";
+                let impColor = "bg-blue-600 text-white";
+                if (imp === 'S') impColor = "bg-red-500 text-white font-black";
                 if (imp === 'A') impColor = "bg-amber-500 text-slate-900 font-bold";
-                if (imp === 'B') impColor = "bg-blue-500 text-white";
-                if (imp === 'C') impColor = "bg-slate-650 text-slate-300";
+                if (imp === 'C') impColor = "bg-slate-400 text-white";
 
-                let catColor = "bg-slate-800 text-slate-300 border border-slate-700";
-                if (item.raw_content === '自社プロダクト') catColor = "bg-green-950 text-green-300 border border-green-800";
-                if (item.raw_content === '競合企業情報') catColor = "bg-red-950 text-red-300 border border-red-800";
-                if (item.raw_content === '市況・市場変化') catColor = "bg-blue-950 text-blue-300 border border-blue-800";
+                let catColor = "bg-slate-200 text-slate-700";
+                if (item.raw_content === '自社プロダクト') catColor = "bg-green-100 text-green-800 border border-green-300";
+                if (item.raw_content === '競合企業情報') catColor = "bg-red-100 text-red-800 border border-red-300";
+                if (item.raw_content === '市況・市場変化') catColor = "bg-blue-100 text-blue-800 border border-blue-300";
 
                 const card = `
-                    <div class="bg-slate-800 p-5 rounded-xl border border-slate-750 hover:border-slate-700 transition space-y-3">
+                    <div class="glass-card p-5 rounded-2xl shadow-sm hover:shadow-md transition duration-300 space-y-3">
                         <div class="flex justify-between items-center flex-wrap gap-2">
                             <div class="flex gap-2 items-center">
-                                <span class="text-xs px-2 py-0.5 rounded font-black tracking-wider ${impColor}">重要度 ${imp}</span>
-                                <span class="text-xs px-2 py-0.5 rounded ${catColor}">${item.raw_content || '一般'}</span>
-                                ${item.related_product !== 'なし' && item.related_product !== null ? `<span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">📦 ${item.related_product}</span>` : ''}
+                                <span class="text-xs px-2.5 py-0.5 rounded-full font-black ${impColor}">重要度 ${imp}</span>
+                                <span class="text-xs px-2.5 py-0.5 rounded-full font-bold ${catColor}">${item.raw_content || '一般'}</span>
+                                ${item.related_product && item.related_product !== 'なし' ? `<span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">📦 ${item.related_product}</span>` : ''}
                             </div>
-                            <span class="text-xs text-slate-500">${date}</span>
+                            <span class="text-xs font-bold text-slate-500">${date}</span>
                         </div>
                         
-                        <h3 class="text-base font-bold text-slate-100">
-                            <a href="${item.url}" target="_blank" class="hover:underline hover:text-blue-300 text-blue-400">${item.title}</a>
+                        <h3 class="text-lg font-extrabold text-slate-900 leading-snug">
+                            <a href="${item.url}" target="_blank" class="hover:text-blue-600 underline decoration-slate-300 hover:decoration-blue-500 transition">${item.title}</a>
                         </h3>
 
-                        <div class="grid grid-cols-1 gap-2 text-xs mt-3 bg-slate-900 bg-opacity-60 p-3 rounded-lg border border-slate-850">
-                            <div><span class="text-blue-400 font-bold block mb-0.5">📝 ニュース要約</span><p class="text-slate-200 pl-2 border-l-2 border-slate-700">${summary}</p></div>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-1">
-                                <div><span class="text-green-400 font-bold block mb-0.5">🚀 AJAの機会 (チャンス)</span><p class="text-slate-300 pl-2 border-l-2 border-green-800">${opp}</p></div>
-                                <div><span class="text-red-400 font-bold block mb-0.5">⚠️ AJAの課題 (リスク)</span><p class="text-slate-300 pl-2 border-l-2 border-red-800">${chg}</p></div>
+                        <div class="grid grid-cols-1 gap-3 text-xs mt-3 bg-white bg-opacity-50 p-4 rounded-xl border border-white border-opacity-40 shadow-inner">
+                            <div><span class="text-blue-600 font-extrabold block mb-0.5 text-sm">📝 ニュース要約</span><p class="text-slate-800 leading-relaxed font-medium">${summary}</p></div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-white border-opacity-40">
+                                <div><span class="text-green-600 font-extrabold block mb-0.5 text-sm">🚀 AJAの機会 (チャンス)</span><p class="text-slate-700 leading-relaxed font-medium">${opp}</p></div>
+                                <div><span class="text-red-600 font-extrabold block mb-0.5 text-sm">⚠️ AJAの課題 (リスク)</span><p class="text-slate-700 leading-relaxed font-medium">${chg}</p></div>
                             </div>
-                            <div class="mt-1"><span class="text-purple-400 font-bold block mb-0.5">💡 クライアントが求めていること</span><p class="text-slate-300 pl-2 border-l-2 border-purple-800">${need}</p></div>
-                            <div class="mt-1 bg-blue-950 bg-opacity-40 p-2 rounded border border-blue-900"><span class="text-amber-400 font-bold block mb-0.5">🔥 提案営業アプローチ方法</span><p class="text-slate-200 font-medium">${prop}</p></div>
+                            <div class="pt-1 border-t border-white border-opacity-40"><span class="text-purple-600 font-extrabold block mb-0.5 text-sm">💡 クライアントが求めていること</span><p class="text-slate-700 leading-relaxed font-medium">${need}</p></div>
+                            <div class="mt-1 bg-gradient-to-r from-blue-50 to-sky-50 p-3 rounded-xl border border-blue-100"><span class="text-slate-900 font-black block mb-1 text-sm flex items-center gap-1">🔥 提案営業アプローチ方法</span><p class="text-slate-800 font-semibold leading-relaxed text-xs">${prop}</p></div>
                         </div>
                     </div>
                 `;
@@ -151,15 +181,15 @@
         }
 
         function filterCategory(category) {
-            document.getElementById('category-title').innerText = `最新のAI抽出インサイト (${category})`;
+            document.getElementById('category-title').innerText = category === '過去ログ' ? '過去ログ (全ニュース網羅)' : `最新のAI抽出インサイト (${category})`;
             const buttons = document.querySelectorAll('#tab-container button');
             buttons.forEach(btn => {
-                btn.classList.remove('bg-blue-600', 'text-white');
-                btn.classList.add('bg-slate-800', 'text-slate-300');
+                btn.classList.remove('bg-slate-900', 'text-white', 'shadow');
+                btn.classList.add('bg-slate-200', 'text-slate-700');
             });
             const activeTab = document.getElementById(`tab-${category}`);
-            activeTab.classList.remove('bg-slate-800', 'text-slate-300');
-            activeTab.classList.add('bg-blue-600', 'text-white');
+            activeTab.classList.remove('bg-slate-200', 'text-slate-700');
+            activeTab.classList.add('bg-slate-900', 'text-white', 'shadow');
             renderNews(category);
         }
 
