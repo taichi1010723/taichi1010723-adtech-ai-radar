@@ -3,16 +3,25 @@ import os
 import json
 import requests
 import xml.etree.ElementTree as ET
+import google.generativeai as genai
 from datetime import datetime
 
 def main():
-    # 🔗 Googleニュースの強大な検索エンジンをハックして、各社の最新リリースを検知！
-    # （これなら企業のIPブロックを100%回避して安全にデータを引っこ抜けます）
+    # 環境変数の読み込み（Gemini APIを再起動！）
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+    if not GEMINI_API_KEY:
+        print("❌ GEMINI_API_KEY が設定されていません。ActionsのSettingsからSecretを確認してください。")
+        return
+        
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel('gemini-2.5-flash')
+
+    # 🔗 検索ワードの末尾に「 when:1d 」を追加！これで【過去24時間以内の超最新ニュース】だけを指定してぶち抜きます
     rss_urls = [
-        "https://news.google.com/rss/search?q=サイバーエージェント+OR+AJA+アドテク&hl=ja&gl=JP&ceid=JP:ja",
-        "https://news.google.com/rss/search?q=電通+広告+OR+マーケティング&hl=ja&gl=JP&ceid=JP:ja",
-        "https://news.google.com/rss/search?q=博報堂+広告+OR+デジタルマーケティング&hl=ja&gl=JP&ceid=JP:ja",
-        "https://news.google.com/rss/search?q=運用型CM+OR+CTV+動画広告&hl=ja&gl=JP&ceid=JP:ja"
+        "https://news.google.com/rss/search?q=サイバーエージェント+OR+AJA+アドテク+when:1d&hl=ja&gl=JP&ceid=JP:ja",
+        "https://news.google.com/rss/search?q=電通+広告+OR+マーケティング+when:1d&hl=ja&gl=JP&ceid=JP:ja",
+        "https://news.google.com/rss/search?q=博報堂+広告+when:1d&hl=ja&gl=JP&ceid=JP:ja",
+        "https://news.google.com/rss/search?q=運用型CM+OR+CTV+動画広告+when:1d&hl=ja&gl=JP&ceid=JP:ja"
     ]
     
     json_file = "data.json"
@@ -28,81 +37,109 @@ def main():
     existing_urls = {item["url"] for item in all_news}
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
-    new_count = 0
+    raw_articles = []
     
+    # 1. 24時間以内のニュースをスキャン
     for url in rss_urls:
         try:
-            # Googleのキーワードを取得してログに表示
-            keyword = url.split('q=')[1].split('&')[0]
-            print(f"📡 Google Newsから抽出中: {requests.utils.unquote(keyword)}")
-            
             res = requests.get(url, timeout=15, headers=headers)
             if res.status_code != 200 or not res.content: continue
                 
             root = ET.fromstring(res.content)
             items = root.findall('.//item')
 
-            media_success_count = 0
             for item in items:
                 title_elem = item.find('title')
                 link_elem = item.find('link')
-                
                 if title_elem is None or link_elem is None: continue
+                
                 title = title_elem.text.strip() if title_elem.text else ""
                 url_text = link_elem.text.strip() if link_elem.text else ""
                 
-                if not title or not url_text: continue
-                if url_text in existing_urls: continue
-
-                # AJA特化型のインサイト分類・判定
-                category = "市況・市場変化"
-                product = "なし"
-                title_lower = title.lower()
-                
-                if "サイバーエージェント" in title_lower or "aja" in title_lower:
-                    category = "自社プロダクト"
-                    product = "incrie"
-                elif "電通" in title_lower or "博報堂" in title_lower:
-                    category = "競合企業情報"
-                    product = "ミエルTV"
-                elif "ai" in title_lower or "動画" in title_lower or "ctv" in title_lower:
-                    category = "その他トレンド"
-
-                # 構造化インサイト生成
-                imp = "A" if "aja" in title_lower or "cm" in title_lower or "動画" in title_lower else "B"
-                summary = f"{title}に関する、デジタル広告およびテレビCM領域の最新動向です。"
-                opp = "大手メディアや競合の動きに対し、AJA独自のCTV配信技術（incrie）や地上波効果可視化（ミエルTV）を組み合わせた柔軟なプランニングで差別化し、新規獲得のチャンスです。"
-                chg = "市場データ網の強化に対して、AJAが持つプレミアムメディアのマネタイズ実績やAI動画考査（AVP）のスピード感で対抗する必要があります。"
-                need = "既存のテレビCMの枠に縛られず、デジタルやCTVを統合して『本当に効果が出る運用型広告』を低コストかつリアルタイムで管理したいという強いニーズ。"
-                prop = "クライアントに対し、『他社にはないAJA独自のリアルタイム放送監視（MITA）と運用型テレビCMの連携で、広告効果を最大化しませんか』と切り出すストーリー提案が極めて有効です。"
-
-                combined_summary = f"||{imp}||{summary}||{opp}||{chg}||{need}||{prop}"
-                
-                news_entry = {
-                    "title": title,
-                    "url": url_text,
-                    "raw_content": category,
-                    "ai_summary": combined_summary,
-                    "related_product": product,
-                    "created_at": datetime.now().strftime("%Y-%m-%d")
-                }
-                all_news.insert(0, news_entry)
-                existing_urls.add(url_text)
-                new_count += 1
-                media_success_count += 1
-                
-            print(f"✅ 抽出完了: （新着 {media_success_count}件 確保）")
+                if title and url_text and url_text not in existing_urls:
+                    raw_articles.append({"title": title, "url": url_text})
         except Exception as e:
-            print(f"⚠️ スキップ: {e}")
             continue
 
-    # 最大100件まで蓄積
+    print(f"📊 本日（24時間以内）に発表された広告業界の最新ニュース: {len(raw_articles)} 件")
+    
+    if not raw_articles:
+        print("✨ 本日は新しいニュースがありませんでした。処理を終了します。")
+        return
+        
+    new_count = 0
+    # 2. 🔥 最新ニュースの上位「最大5件」に対して、Geminiにガチで1件ずつ個別分析させる！
+    for article in raw_articles:
+        if new_count >= 5: # 無料枠20回のうち5回だけ贅沢に消費
+            break
+            
+        try:
+            print(f"🧠 Geminiが最新ニュースを本気で個別分析中: {article['title'][:15]}...")
+            
+            prompt = f"""
+            以下の広告業界の【超最新ニュース】を読み、AJA AdTech（incrie, ミエルTV, AJA SSP, AVP, MITA）のビジネス・営業担当者の視点に立ち、このニュース固有のリアルな分析を行ってください。
+            定型文やテンプレートは絶対に使い回さず、ニュースの内容に深く踏み込んだ具体的な営業提案を導き出してください。
+
+            【最新ニュース】: {article['title']}
+
+            【分析ルール】
+            1. 重要度: AJAおよびアドテク市場に与える影響度を [S, A, B, C] の4段階から1つ厳選。
+            2. AJAの機会: この最新動向に対して、AJAのプロダクト（インクリーやミエルTVなど）がどう攻め込めるか、リプレイスできるチャンス。
+            3. AJAの課題: 競合の動きや技術変化により、AJAが直面するリスクや対策すべき障壁。
+            4. クライアントの要求: 広告主やメディアがこのニュースを受けて今求めている本音やニーズ。
+            5. 提案営業方法: AJAの営業として、どの製品をどう提案すべきか、ニュースの内容に沿った具体的な営業トークや施策。
+            6. カテゴリ: [自社プロダクト / 競合企業情報 / 市況・市場変化 / その他トレンド] から1つ。
+            7. 関連製品: [incrie / ミエルTV / AJA SSP / AJA VideoPlatform / MITA / なし] から1つ。
+
+            【出力フォーマット】（余計な解説は一切含めず、この通りに出力してください）
+            IMPORTANCE: (S、A、B、Cのいずれか1文字)
+            SUMMARY: (ニュースの簡潔な要約)
+            OPPORTUNITY: (ニュースを踏まえたAJAにとっての機会)
+            CHALLENGE: (ニュースを踏まえたAJAにとっての課題)
+            CLIENT_NEED: (クライアントが今求めている具体的な本音)
+            PROPOSAL: (ニュース直撃の具体的な提案営業トークや方法)
+            CATEGORY: (カテゴリ名)
+            PRODUCT: (関連製品名)
+            """
+            
+            response = model.generate_content(prompt)
+            lines = response.text.strip().split('\n')
+            
+            parsed = {
+                "IMPORTANCE": "B", "SUMMARY": article['title'], "OPPORTUNITY": "分析中", 
+                "CHALLENGE": "分析中", "CLIENT_NEED": "情報収集中", "PROPOSAL": "提案資料の作成",
+                "CATEGORY": "市況・市場変化", "PRODUCT": "なし"
+            }
+            
+            for line in lines:
+                for key in parsed.keys():
+                    if line.startswith(f"{key}:"):
+                        parsed[key] = line.replace(f"{key}:", "").strip()
+
+            combined_summary = f"||{parsed['IMPORTANCE']}||{parsed['SUMMARY']}||{parsed['OPPORTUNITY']}||{parsed['CHALLENGE']}||{parsed['CLIENT_NEED']}||{parsed['PROPOSAL']}"
+            
+            news_entry = {
+                "title": article['title'],
+                "url": article['url'],
+                "raw_content": parsed['CATEGORY'],
+                "ai_summary": combined_summary,
+                "related_product": parsed['PRODUCT'],
+                "created_at": datetime.now().strftime("%Y-%m-%d")
+            }
+            all_news.insert(0, news_entry) # 最新を一番上に
+            new_count += 1
+            
+        except Exception as e:
+            print(f"⚠️ 個別分析エラー回避: {e}")
+            continue
+
+    # 過去ログとして最大100件まで蓄積キープ
     all_news = all_news[:100]
     
     with open(json_file, "w", encoding="utf-8") as f:
         json.dump(all_news, f, ensure_ascii=False, indent=2)
         
-    print(f"✨ 全処理完了。新着追加: {new_count}件（総蓄積数: {len(all_news)}件）")
+    print(f"✨ 処理完了。本日のガチ新着: {new_count}件（総蓄積数: {len(all_news)}件）")
 
 if __name__ == "__main__":
     main()
